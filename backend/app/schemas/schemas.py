@@ -1,7 +1,17 @@
 from datetime import date, datetime
-from typing import Optional, List
-from pydantic import BaseModel, ConfigDict
+from typing import Optional, List, Union
+from pydantic import BaseModel, ConfigDict, field_validator
 import enum
+
+
+def parse_date(v):
+    if v is None or v == "":
+        return None
+    if isinstance(v, date):
+        return v
+    if isinstance(v, str) and v:
+        return date.fromisoformat(v)
+    return None
 
 
 class UserRole(str, enum.Enum):
@@ -71,10 +81,16 @@ class VacationResponse(VacationBase):
 
 class EventBase(BaseModel):
     title: str
-    start_date: date
-    end_date: date
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
     description: Optional[str] = None
     location: Optional[str] = None
+    route: Optional[str] = None
+
+    @field_validator('start_date', 'end_date')
+    @classmethod
+    def validate_date(cls, v):
+        return parse_date(v)
 
 
 class EventCreate(EventBase):
@@ -83,10 +99,16 @@ class EventCreate(EventBase):
 
 class EventUpdate(BaseModel):
     title: Optional[str] = None
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
     description: Optional[str] = None
     location: Optional[str] = None
+    route: Optional[str] = None
+
+    @field_validator('start_date', 'end_date')
+    @classmethod
+    def validate_date(cls, v):
+        return parse_date(v)
 
 
 class ParticipationResponse(BaseModel):

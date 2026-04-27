@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, addMonths, subMonths, isWithinInterval, startOfYear, endOfYear, eachMonthOfInterval, startOfDay, isSameDay } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWithinInterval, startOfDay, isSameDay, eachMonthOfInterval } from "date-fns";
 import { ru } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -11,20 +11,20 @@ import { authApi, vacationsApi, eventsApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { Vacation, Event, User, ParticipationStatus } from "@/types";
 import { X, Users, MapPin } from "lucide-react";
+import { EventModal } from "@/components/EventModal";
 
-const MONTH_NAMES = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
 const WEEK_DAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
 export default function CalendarPage() {
   const router = useRouter();
   const { user, setAuth } = useAuthStore();
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<"month" | "year">("month");
   const [vacations, setVacations] = useState<Vacation[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [showVacationForm, setShowVacationForm] = useState(false);
+  const [showEventModal, setShowEventModal] = useState(false);
   const [newVacation, setNewVacation] = useState({ start_date: "", end_date: "", description: "" });
   const [loading, setLoading] = useState(true);
   const [hiddenUsers, setHiddenUsers] = useState<number[]>([]);
@@ -67,12 +67,6 @@ export default function CalendarPage() {
     loadData();
   }, [loadData]);
 
-  const monthStart = startOfMonth(currentDate);
-  const monthEnd = endOfMonth(currentDate);
-  const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
-  const startDay = daysInMonth[0].getDay() || 7;
-  const paddingDays = Array(startDay - 1).fill(null);
-
   const getVacationsForDay = (day: Date) => {
     return vacations.filter((v) => {
       if (hiddenUsers.includes(v.user_id)) return false;
@@ -84,6 +78,7 @@ export default function CalendarPage() {
 
   const getEventsForDay = (day: Date) => {
     return events.filter((e) => {
+      if (!e.start_date || !e.end_date) return false;
       const start = startOfDay(new Date(e.start_date));
       const end = startOfDay(new Date(e.end_date));
       const dayNorm = startOfDay(day);
@@ -142,13 +137,7 @@ export default function CalendarPage() {
         <h1 className="text-2xl font-bold">Календарь</h1>
         <div className="flex gap-2">
           <Button onClick={() => setShowVacationForm(true)}> + Отпуск</Button>
-          <Button variant="outline" onClick={() => router.push("/events")}> + Поездка</Button>
-          <Button variant={viewMode === "month" ? "default" : "outline"} onClick={() => setViewMode("month")}>
-            Месяц
-          </Button>
-          <Button variant={viewMode === "year" ? "default" : "outline"} onClick={() => setViewMode("year")}>
-            Год
-          </Button>
+          <Button variant="outline" onClick={() => setShowEventModal(true)}> + Поездка</Button>
         </div>
       </div>
 
@@ -156,96 +145,66 @@ export default function CalendarPage() {
         <Button variant="outline" onClick={() => setCurrentDate(subMonths(currentDate, 1))}>
           ←
         </Button>
-        <h2 className="text-xl font-semibold">
-          {viewMode === "month" ? format(currentDate, "MMMM yyyy", { locale: ru }) : currentDate.getFullYear()}
-        </h2>
+        <h2 className="text-xl font-semibold">{format(currentDate, "MMMM yyyy", { locale: ru })}</h2>
         <Button variant="outline" onClick={() => setCurrentDate(addMonths(currentDate, 1))}>
           →
         </Button>
       </div>
 
-      {viewMode === "month" && (
-        <>
-          <div className="grid grid-cols-7 gap-1 mb-2">
-            {WEEK_DAYS.map((day) => (
-              <div key={day} className="text-center font-medium text-sm p-2">
-                {day}
-              </div>
-            ))}
-          </div>
-          <div className="grid grid-cols-7 gap-1">
-            {paddingDays.map((_, i) => (
-              <div key={`pad-${i}`} className="min-h-[80px] bg-muted/20" />
-            ))}
-            {daysInMonth.map((day) => {
-              const dayVacations = getVacationsForDay(day);
-              const dayEvents = getEventsForDay(day);
-              return (
-                <div
-                  key={day.toISOString()}
-                  className="min-h-[80px] border p-1 cursor-pointer hover:bg-muted/30"
-                  onClick={() => setSelectedDay(day)}
-                >
-                  <div className="text-sm font-medium">{format(day, "d")}</div>
-                  {dayVacations.slice(0, 3).map((v, i) => (
-                    <div
-                      key={v.id}
-                      className="text-xs px-1 truncate"
-                      style={{ backgroundColor: v.user?.color || "#3b82f6", color: "#fff" }}
-                    >
-                      {v.user?.name}
-                    </div>
-                  ))}
-                  {dayEvents.map((e) => (
-                    <div key={e.id} className="text-xs bg-primary text-primary-foreground px-1 truncate">
-                      🏍 {e.title}
-                    </div>
-                  ))}
-                </div>
-              );
-            })}
-          </div>
-        </>
-      )}
-
-      {viewMode === "year" && (
-        <div className="grid grid-cols-3 gap-4">
-          {eachMonthOfInterval({
-            start: startOfYear(currentDate),
-            end: endOfYear(currentDate),
-          }).map((month) => {
-            const monthVacations = vacations.filter((v) => {
-              const start = new Date(v.start_date);
-              const end = new Date(v.end_date);
-              return month.getMonth() === start.getMonth();
-            });
-            const monthEvents = events.filter((e) => {
-              const start = new Date(e.start_date);
-              return month.getMonth() === start.getMonth();
-            });
-            return (
-              <div
-                key={month.toISOString()}
-                className="border p-2 cursor-pointer hover:bg-muted/30"
-                onClick={() => {
-                  setCurrentDate(month);
-                  setViewMode("month");
-                }}
-              >
-                <div className="font-medium">{MONTH_NAMES[month.getMonth()]}</div>
-                <div className="text-sm text-muted-foreground">
-                  {monthVacations.length} отпусков
-                </div>
-                {monthEvents.map((e) => (
-                  <div key={e.id} className="text-sm text-primary">
-                    🏍 {e.title} ({format(new Date(e.start_date), "d MMM")})
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[0, 1, 2].map((offset) => {
+          const monthDate = addMonths(currentDate, offset);
+          const monthStart = startOfMonth(monthDate);
+          const monthEnd = endOfMonth(monthDate);
+          const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
+          const startDay = daysInMonth[0].getDay() || 7;
+          const paddingDays = Array(startDay - 1).fill(null);
+          return (
+            <div key={offset}>
+              <div className="text-center font-semibold mb-2">{format(monthDate, "MMMM yyyy", { locale: ru })}</div>
+              <div className="grid grid-cols-7 gap-1 mb-2">
+                {WEEK_DAYS.map((day) => (
+                  <div key={day} className="text-center font-medium text-xs p-1">
+                    {day}
                   </div>
                 ))}
               </div>
-            );
-          })}
-        </div>
-      )}
+              <div className="grid grid-cols-7 gap-1">
+                {paddingDays.map((_, i) => (
+                  <div key={`pad-${offset}-${i}`} className="min-h-[60px] bg-muted/20" />
+                ))}
+                {daysInMonth.map((day) => {
+                  const dayVacations = getVacationsForDay(day);
+                  const dayEvents = getEventsForDay(day);
+                  return (
+                    <div
+                      key={day.toISOString()}
+                      className="min-h-[60px] border p-1 cursor-pointer hover:bg-muted/30"
+                      onClick={() => setSelectedDay(day)}
+                    >
+                      <div className="text-sm font-medium">{format(day, "d")}</div>
+                      {dayVacations.slice(0, 2).map((v) => (
+                        <div
+                          key={v.id}
+                          className="text-xs px-1 truncate"
+                          style={{ backgroundColor: v.user?.color || "#3b82f6", color: "#fff" }}
+                        >
+                          {v.user?.name}
+                        </div>
+                      ))}
+                      {dayEvents.map((e) => (
+                        <div key={e.id} className="text-xs bg-primary text-primary-foreground px-1 truncate">
+                          🏍 {e.title}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       {selectedDay && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center" onClick={() => setSelectedDay(null)}>
@@ -284,7 +243,15 @@ export default function CalendarPage() {
                       <div key={e.id} className="border rounded-lg p-3 mb-3">
                         <div className="font-medium">🏍 {e.title}</div>
                         <div className="text-sm text-muted-foreground">
-                          {format(new Date(e.start_date), "d MMM")} - {format(new Date(e.end_date), "d MMM yyyy")}
+                          {e.start_date && e.end_date ? (
+                            <>
+                              {format(new Date(e.start_date), "d MMM")} - {format(new Date(e.end_date), "d MMM yyyy")}
+                            </>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                              Без даты
+                            </span>
+                          )}
                         </div>
                         {e.location && (
                           <div className="text-sm flex items-center gap-1 mt-1">
@@ -356,7 +323,7 @@ export default function CalendarPage() {
                 >
                   Добавить отпуск
                 </Button>
-                <Button variant="outline" onClick={() => router.push(`/events?date=${format(selectedDay, "yyyy-MM-dd")}`)}>
+                <Button variant="outline" onClick={() => setShowEventModal(true)}>
                   Создать поездку
                 </Button>
               </div>
@@ -409,6 +376,16 @@ export default function CalendarPage() {
           </Card>
         </div>
       )}
+
+      <EventModal
+        isOpen={showEventModal}
+        onClose={() => setShowEventModal(false)}
+        onSave={async (data) => {
+          await eventsApi.create(data);
+          loadData();
+        }}
+        mode="create"
+      />
     </div>
   );
 }

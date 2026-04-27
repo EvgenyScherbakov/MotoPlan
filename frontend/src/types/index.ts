@@ -30,8 +30,9 @@ export interface Event {
   description: string | null;
   image: string | null;
   location: string | null;
-  start_date: string;
-  end_date: string;
+  route: string | null;
+  start_date: string | null;
+  end_date: string | null;
   created_at: string;
   participations: Participation[];
   author: User;
@@ -83,10 +84,11 @@ export interface VacationUpdate {
 
 export interface EventCreate {
   title: string;
-  start_date: string;
-  end_date: string;
+  start_date?: string;
+  end_date?: string;
   description?: string;
   location?: string;
+  route?: string;
 }
 
 export interface EventUpdate {
@@ -95,4 +97,5 @@ export interface EventUpdate {
   end_date?: string;
   description?: string;
   location?: string;
+  route?: string;
 }

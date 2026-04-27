@@ -90,8 +90,16 @@ export default function EventDetailPage() {
         <CardHeader>
           <CardTitle>{event.title}</CardTitle>
           <CardDescription>
-            {format(new Date(event.start_date), "d MMM", { locale: ru })} -{" "}
-            {format(new Date(event.end_date), "d MMM yyyy", { locale: ru })}
+            {event.start_date && event.end_date ? (
+              <>
+                {format(new Date(event.start_date), "d MMM", { locale: ru })} -{" "}
+                {format(new Date(event.end_date), "d MMM yyyy", { locale: ru })}
+              </>
+            ) : (
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                Без даты
+              </span>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

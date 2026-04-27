@@ -57,8 +57,9 @@ class Event(Base):
     description = Column(Text, nullable=True)
     image = Column(String(255), nullable=True)
     location = Column(String(500), nullable=True)
-    start_date = Column(Date, nullable=False)
-    end_date = Column(Date, nullable=False)
+    route = Column(String(500), nullable=True)
+    start_date = Column(Date, nullable=True)
+    end_date = Column(Date, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
     author = relationship("User", back_populates="events")
