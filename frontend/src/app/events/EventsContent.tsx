@@ -26,6 +26,8 @@ export function EventsContent() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingEventId, setEditingEventId] = useState<number | null>(null);
+  const [editingNoDate, setEditingNoDate] = useState<Record<number, boolean>>({});
+  const [editingSavedDates, setEditingSavedDates] = useState<Record<number, { start_date: string; end_date: string }>>({});
   const [eventStatuses, setEventStatuses] = useState<Record<number, ParticipationStatus>>({});
 
   const loadEvents = async () => {
@@ -92,16 +94,27 @@ export function EventsContent() {
     try {
       const event = events.find((e) => e.id === eventId);
       if (!event) return;
+      const noDate = editingNoDate[eventId] || !event.start_date && !event.end_date;
       const updateData: Record<string, string | undefined> = {
         title: event.title,
+        start_date: noDate ? "" : (event.start_date || ""),
+        end_date: noDate ? "" : (event.end_date || ""),
       };
-      if (event.start_date) updateData.start_date = event.start_date;
-      if (event.end_date) updateData.end_date = event.end_date;
       if (event.description) updateData.description = event.description;
       if (event.location) updateData.location = event.location;
       if (event.route) updateData.route = event.route;
       await eventsApi.update(eventId, updateData);
       setEditingEventId(null);
+      setEditingNoDate((prev) => {
+        const next = { ...prev };
+        delete next[eventId];
+        return next;
+      });
+      setEditingSavedDates((prev) => {
+        const next = { ...prev };
+        delete next[eventId];
+        return next;
+      });
       loadEvents();
     } catch (err: any) {
       alert(err.message);
@@ -210,6 +223,7 @@ export function EventsContent() {
                             handleUpdateEvent(event.id);
                           } else {
                             setEditingEventId(event.id);
+                            setEditingNoDate((prev) => ({ ...prev, [event.id]: !event.start_date && !event.end_date }));
                           }
                         }}
                       >
@@ -228,16 +242,19 @@ export function EventsContent() {
                 <CardContent className="space-y-2">
                   {isEditing ? (
                     <>
-                      <div className="flex items-center gap-4">
+                      <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <input
                             type="checkbox"
                             id={`noDate-${event.id}`}
-                            checked={!event.start_date && !event.end_date}
+                            checked={editingNoDate[event.id] || false}
                             onChange={(e) => {
+                              const savedDates = { start_date: event.start_date || "", end_date: event.end_date || "" };
+                              setEditingSavedDates((prev) => ({ ...prev, [event.id]: savedDates }));
+                              setEditingNoDate((prev) => ({ ...prev, [event.id]: e.target.checked }));
                               const updated = events.map((ev) =>
                                 ev.id === event.id
-                                  ? { ...ev, start_date: e.target.checked ? "" : "", end_date: e.target.checked ? "" : "" }
+                                  ? { ...ev, start_date: e.target.checked ? "" : savedDates.start_date, end_date: e.target.checked ? "" : savedDates.end_date }
                                   : ev
                               );
                               setEvents(updated);
@@ -246,13 +263,13 @@ export function EventsContent() {
                           />
                           <label htmlFor={`noDate-${event.id}`} className="text-sm">Без даты</label>
                         </div>
-                        {event.start_date || event.end_date ? (
+                        {!editingNoDate[event.id] && (event.start_date || event.end_date || editingSavedDates[event.id]) ? (
                           <div className="flex items-center gap-2">
                             <div className="space-y-1">
                               <label className="text-xs text-muted-foreground">Начало</label>
                               <Input
                                 type="date"
-                                value={event.start_date || ""}
+                                value={event.start_date || editingSavedDates[event.id]?.start_date || ""}
                                 onChange={(e) => {
                                   const updated = events.map((ev) => ev.id === event.id ? { ...ev, start_date: e.target.value } : ev);
                                   setEvents(updated);
@@ -264,7 +281,7 @@ export function EventsContent() {
                               <label className="text-xs text-muted-foreground">Конец</label>
                               <Input
                                 type="date"
-                                value={event.end_date || ""}
+                                value={event.end_date || editingSavedDates[event.id]?.end_date || ""}
                                 onChange={(e) => {
                                   const updated = events.map((ev) => ev.id === event.id ? { ...ev, end_date: e.target.value } : ev);
                                   setEvents(updated);

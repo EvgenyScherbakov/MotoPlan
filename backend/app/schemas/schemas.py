@@ -1,17 +1,7 @@
 from datetime import date, datetime
 from typing import Optional, List, Union
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, model_validator, field_serializer
 import enum
-
-
-def parse_date(v):
-    if v is None or v == "":
-        return None
-    if isinstance(v, date):
-        return v
-    if isinstance(v, str) and v:
-        return date.fromisoformat(v)
-    return None
 
 
 class UserRole(str, enum.Enum):
@@ -87,28 +77,23 @@ class EventBase(BaseModel):
     location: Optional[str] = None
     route: Optional[str] = None
 
-    @field_validator('start_date', 'end_date')
+    @model_validator(mode='before')
     @classmethod
-    def validate_date(cls, v):
-        return parse_date(v)
+    def preprocess_dates(cls, values):
+        if not isinstance(values, dict):
+            return values
+        for field in ['start_date', 'end_date']:
+            if field in values and isinstance(values[field], str) and values[field] == '':
+                values[field] = None
+        return values
 
 
 class EventCreate(EventBase):
     pass
 
 
-class EventUpdate(BaseModel):
-    title: Optional[str] = None
-    start_date: Optional[date] = None
-    end_date: Optional[date] = None
-    description: Optional[str] = None
-    location: Optional[str] = None
-    route: Optional[str] = None
-
-    @field_validator('start_date', 'end_date')
-    @classmethod
-    def validate_date(cls, v):
-        return parse_date(v)
+class EventUpdate(EventBase):
+    pass
 
 
 class ParticipationResponse(BaseModel):
@@ -127,6 +112,14 @@ class EventResponse(EventBase):
     created_at: datetime
     participations: List[ParticipationResponse] = []
     author: UserResponse
+
+    @field_serializer('start_date')
+    def serialize_start_date(self, value):
+        return value.isoformat() if value else None
+
+    @field_serializer('end_date')
+    def serialize_end_date(self, value):
+        return value.isoformat() if value else None
 
     model_config = ConfigDict(from_attributes=True)
 

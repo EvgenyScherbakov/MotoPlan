@@ -1,4 +1,5 @@
 from typing import List, Optional
+from datetime import date, datetime
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -101,12 +102,17 @@ async def update_event(
         event.start_date = data.start_date
     if data.end_date is not None:
         event.end_date = data.end_date
+    if data.route is not None:
+        event.route = data.route
     
     await db.commit()
     await db.refresh(event)
     result = await db.execute(
         select(Event)
-        .options(selectinload(Event.author))
+        .options(
+            selectinload(Event.author),
+            selectinload(Event.participations).selectinload(Participation.user)
+        )
         .where(Event.id == event_id)
     )
     event = result.scalar_one()

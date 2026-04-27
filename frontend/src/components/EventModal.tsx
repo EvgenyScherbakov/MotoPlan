@@ -100,30 +100,37 @@ export function EventModal({ isOpen, onClose, onSave, initialData, mode }: Event
               type="checkbox"
               id="noDate"
               checked={noDate}
-              onChange={(e) => setNoDate(e.target.checked)}
+              onChange={(e) => {
+                setNoDate(e.target.checked);
+                if (e.target.checked) {
+                  setForm({ ...form, start_date: "", end_date: "" });
+                }
+              }}
               className="w-4 h-4"
             />
             <label htmlFor="noDate" className="text-sm">Без даты</label>
           </div>
           {!noDate && (
-            <>
-              <div className="space-y-2">
-                <label className="text-sm">Начало</label>
+            <div className="flex items-center gap-4">
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Начало</label>
                 <Input
                   type="date"
                   value={form.start_date}
                   onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+                  className="h-8 text-sm"
                 />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm">Конец</label>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Конец</label>
                 <Input
                   type="date"
                   value={form.end_date}
                   onChange={(e) => setForm({ ...form, end_date: e.target.value })}
+                  className="h-8 text-sm"
                 />
               </div>
-            </>
+            </div>
           )}
           <div className="space-y-2">
             <label className="text-sm">Место</label>
