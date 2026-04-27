@@ -1,0 +1,12 @@
+{
+  "/_not-found/page": "/_not-found",
+  "/page": "/",
+  "/events/[id]/page": "/events/[id]",
+  "/admin/page": "/admin",
+  "/profile/[id]/page": "/profile/[id]",
+  "/calendar/page": "/calendar",
+  "/events/page": "/events",
+  "/profile/page": "/profile",
+  "/login/page": "/login",
+  "/register/page": "/register"
+}
