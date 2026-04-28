@@ -234,7 +234,7 @@ export default function CalendarPage() {
                       onClick={() => setSelectedDay(day)}
                     >
                       <div className="text-sm font-medium">{format(day, "d")}</div>
-                      {dayVacations.slice(0, 2).map((v) => (
+                      {dayVacations.map((v) => (
                         <div
                           key={v.id}
                           className="text-xs px-1 truncate"
