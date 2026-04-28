@@ -49,11 +49,13 @@ export default function CalendarPage() {
         router.push("/login");
         return;
       }
-      if (!user) {
+      let currentUser = user;
+      if (!currentUser) {
         console.log("[Calendar] Fetching user data...");
         const u = await authApi.me();
         console.log("[Calendar] User data fetched:", u.username);
         setAuth(u, token);
+        currentUser = u;
       }
       console.log("[Calendar] Fetching vacations and events...");
       const [v, e] = await Promise.all([
@@ -65,10 +67,8 @@ export default function CalendarPage() {
       setEvents(e);
       const statuses: Record<number, ParticipationStatus> = {};
       e.forEach((event: Event) => {
-        const myParticipation = event.participations.find((p) => p.user_id === user?.id);
-        if (myParticipation) {
-          statuses[event.id] = myParticipation.status;
-        }
+        const myParticipation = event.participations.find((p) => p.user_id === currentUser?.id);
+        statuses[event.id] = myParticipation?.status ?? "not_answered";
       });
       setEventStatuses(statuses);
     } catch (err: any) {
@@ -154,6 +154,16 @@ export default function CalendarPage() {
     try {
       await eventsApi.leave(eventId);
       setEventStatuses((prev) => ({ ...prev, [eventId]: "not_going" }));
+      loadData();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  }
+
+  async function handleCancel(eventId: number) {
+    try {
+      await eventsApi.cancel(eventId);
+      setEventStatuses((prev) => ({ ...prev, [eventId]: "not_answered" }));
       loadData();
     } catch (err: any) {
       alert(err.message);
@@ -276,17 +286,17 @@ export default function CalendarPage() {
                 {getEventsForDay(selectedDay).length === 0 ? (
                   <p className="text-sm text-muted-foreground">Нет мероприятий</p>
                 ) : (
-                  getEventsForDay(selectedDay).map((e) => {
-                    const going = e.participations.filter((p) => p.status === "going");
-                    const notGoing = e.participations.filter((p) => p.status === "not_going");
-                    const currentStatus = eventStatuses[e.id];
+                  getEventsForDay(selectedDay).map((ev) => {
+                    const going = ev.participations.filter((p) => p.status === "going");
+                    const notGoing = ev.participations.filter((p) => p.status === "not_going");
+                    const currentStatus = eventStatuses[ev.id];
                     return (
-                      <div key={e.id} className="border rounded-lg p-3 mb-3">
-                        <div className="font-medium">🏍 {e.title}</div>
+                      <div key={ev.id} className="border rounded-lg p-3 mb-3">
+                        <div className="font-medium">🏍 {ev.title}</div>
                         <div className="text-sm text-muted-foreground">
-                          {e.start_date && e.end_date ? (
+                          {ev.start_date && ev.end_date ? (
                             <>
-                              {format(new Date(e.start_date), "d MMM")} - {format(new Date(e.end_date), "d MMM yyyy")}
+                              {format(new Date(ev.start_date), "d MMM")} - {format(new Date(ev.end_date), "d MMM yyyy")}
                             </>
                           ) : (
                             <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
@@ -294,79 +304,129 @@ export default function CalendarPage() {
                             </span>
                           )}
                         </div>
-                        {e.location && (
+                        {ev.location && (
                           <div className="text-sm flex items-center gap-1 mt-1">
                             <MapPin className="h-3 w-3" />
-                            {e.location.startsWith("http") ? (
-                              <a href={e.location} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+                            {ev.location.startsWith("http") ? (
+                              <a href={ev.location} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
                                 Место
                               </a>
                             ) : (
-                              <span>{e.location}</span>
+                              <span>{ev.location}</span>
                             )}
                           </div>
                         )}
-                        {e.route && (
+                        {ev.route && (
                           <div className="text-sm flex items-center gap-1 mt-1">
                             <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                            </svg>
-                            {e.route.startsWith("http") ? (
-                              <a href={e.route} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+                                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                              </svg>
+                            {ev.route.startsWith("http") ? (
+                              <a href={ev.route} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
                                 Маршрут
                               </a>
                             ) : (
-                              <span>{e.route}</span>
+                              <span>{ev.route}</span>
                             )}
                           </div>
                         )}
-                        {e.description && (
-                          <div className="text-sm text-muted-foreground mt-1">{e.description}</div>
+                        {ev.description && (
+                          <div className="text-sm text-muted-foreground mt-1">{ev.description}</div>
                         )}
-                        <div className="flex gap-2 mt-2">
-                          {currentStatus === "going" ? (
-                            <Button size="sm" variant="outline" onClick={() => handleLeave(e.id)}>
-                              Не еду
-                            </Button>
-                          ) : (
-                            <Button size="sm" onClick={() => handleJoin(e.id)}>
-                              Еду
-                            </Button>
-                          )}
-                        </div>
-                        <div className="mt-2">
-                          <div className="text-sm flex items-center gap-1">
-                            <Users className="h-3 w-3" />{" "}
-                            <span className="text-green-600">{going.length} едет</span>
-                            <span className="text-red-600 ml-2">{notGoing.length} не едет</span>
+                        <div className="space-y-3 mt-3">
+                          <div
+                            className="w-full h-14 rounded-2xl relative cursor-pointer select-none overflow-hidden
+                                   bg-white/20 backdrop-blur-xl border border-white/30
+                                   shadow-[inset_0_1px_1px_rgba(255,255,255,0.4),0_4px_16px_rgba(0,0,0,0.1)]
+                                   hover:shadow-[inset_0_1px_1px_rgba(255,255,255,0.6),0_8px_24px_rgba(0,0,0,0.15)]
+                                   transition-all duration-300 ease-out"
+                            onClick={(e) => {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const clickX = e.clientX - rect.left;
+                              const third = rect.width / 3;
+                              if (clickX < third) {
+                                handleJoin(ev.id);
+                              } else if (clickX > 2 * third) {
+                                handleLeave(ev.id);
+                              } else {
+                                handleCancel(ev.id);
+                              }
+                            }}
+                          >
+                            <div className="absolute inset-0 flex">
+                              <div className={`w-1/3 transition-all duration-500 ${
+                                currentStatus === "going" ? "bg-green-400/30 shadow-[0_0_30px_rgba(34,197,94,0.5)]" : "bg-green-400/10"
+                              }`} />
+                              <div className="w-1/3 bg-gray-200/50" />
+                              <div className={`w-1/3 transition-all duration-500 ${
+                                currentStatus === "not_going" ? "bg-red-400/30 shadow-[0_0_30px_rgba(239,68,68,0.5)]" : "bg-red-400/10"
+                              }`} />
+                            </div>
+                            <div className={`absolute top-1 bottom-1 w-1/3 rounded-xl transition-all duration-300 ease-out ${
+                              currentStatus === "going"
+                                ? "left-0 bg-gradient-to-r from-green-400 via-green-500 to-emerald-400 shadow-[0_0_20px_rgba(34,197,94,0.6),inset_0_1px_0_rgba(255,255,255,0.5)]"
+                                : currentStatus === "not_going"
+                                ? "left-2/3 bg-gradient-to-r from-red-400 via-red-500 to-rose-400 shadow-[0_0_20px_rgba(239,68,68,0.6),inset_0_1px_0_rgba(255,255,255,0.5)]"
+                                : "left-1/3 bg-gradient-to-r from-gray-300 via-gray-400 to-slate-300 shadow-[0_0_15px_rgba(148,163,184,0.4),inset_0_1px_0_rgba(255,255,255,0.6)]"
+                            }`}>
+                              <div className="absolute inset-0 rounded-xl bg-gradient-to-b from-white/30 to-transparent" />
+                            </div>
+                            <div className="absolute inset-0 flex items-center justify-around text-sm font-semibold pointer-events-none z-10">
+                              <span className={`transition-all duration-300 ${
+                                currentStatus === "going" ? "text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] scale-105" : "text-green-900"
+                              }`}>
+                                ✓ Я в деле
+                              </span>
+                              <span className={`transition-all duration-300 ${
+                                currentStatus === "not_answered" ? "text-gray-900 font-bold" : "text-gray-600"
+                              }`}>
+                                Едешь?
+                              </span>
+                              <span className={`transition-all duration-300 ${
+                                currentStatus === "not_going" ? "text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] scale-105" : "text-red-900"
+                              }`}>
+                                ✗ Нахер
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                        {going.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {going.map((p) => (
-                              <div
-                                key={p.user.id}
-                                className="text-xs px-1 py-0.5 rounded"
-                                style={{ backgroundColor: p.user.color, color: "#fff" }}
-                              >
-                                {p.user.name}
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                                <h4 className="text-xs font-semibold text-green-800">Я в деле ({going.length})</h4>
                               </div>
-                            ))}
-                          </div>
-                        )}
-                        {notGoing.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {notGoing.map((p) => (
-                              <div
-                                key={p.user.id}
-                                className="text-xs px-1 py-0.5 rounded opacity-60"
-                                style={{ backgroundColor: p.user.color, color: "#fff" }}
-                              >
-                                {p.user.name}
+                              <div className="flex flex-wrap gap-1">
+                                {going.map((p) => (
+                                  <span
+                                    key={p.user.id}
+                                    className="text-xs px-2.5 py-1 rounded-full text-white font-medium shadow-[0_2px_8px_rgba(0,0,0,0.15)] hover:scale-105 transition-transform"
+                                    style={{ backgroundColor: p.user.color }}
+                                  >
+                                    {p.user.name}
+                                  </span>
+                                ))}
                               </div>
-                            ))}
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                                <h4 className="text-xs font-semibold text-red-800">Нахер ({notGoing.length})</h4>
+                              </div>
+                              <div className="flex flex-wrap gap-1">
+                                {notGoing.map((p) => (
+                                  <span
+                                    key={p.user.id}
+                                    className="text-xs px-2.5 py-1 rounded-full text-white font-medium opacity-90 shadow-[0_2px_8px_rgba(0,0,0,0.15)] hover:scale-105 transition-transform"
+                                    style={{ backgroundColor: p.user.color }}
+                                  >
+                                    {p.user.name}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
                           </div>
-                        )}
+                        </div>
                       </div>
                     );
                   })

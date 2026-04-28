@@ -59,6 +59,7 @@ async def create_event(
         title=data.title,
         description=data.description,
         location=data.location,
+        route=data.route,
         start_date=data.start_date,
         end_date=data.end_date
     )
@@ -192,6 +193,27 @@ async def leave_event(
     
     await db.commit()
     return {"message": "Left"}
+
+
+@router.post("/{event_id}/cancel")
+async def cancel_participation(
+    event_id: int,
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id)
+):
+    result = await db.execute(
+        select(Participation).where(
+            Participation.event_id == event_id,
+            Participation.user_id == user_id
+        )
+    )
+    participation = result.scalar_one_or_none()
+
+    if participation:
+        await db.delete(participation)
+        await db.commit()
+
+    return {"message": "Cancelled"}
 
 
 @router.post("/{event_id}/image")

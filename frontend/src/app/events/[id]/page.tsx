@@ -70,6 +70,16 @@ export default function EventDetailPage() {
     }
   }
 
+  async function handleCancel() {
+    try {
+      await eventsApi.cancel(eventId);
+      setCurrentUserStatus("not_answered");
+      loadEvent();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  }
+
   if (loading || !event) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
@@ -128,53 +138,92 @@ export default function EventDetailPage() {
               <span className="font-medium">Описание:</span> {event.description}
             </div>
           )}
-          <div className="flex gap-2">
-            {currentUserStatus === "going" ? (
-              <Button variant="outline" onClick={handleLeave}>
-                Не поеду
-              </Button>
-            ) : (
-              <Button onClick={handleJoin}>Поеду</Button>
-            )}
-          </div>
-
-          <div className="space-y-4">
-            <h3 className="font-medium">Участники</h3>
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium text-green-600">Едут ({going.length})</h4>
-              {going.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Пока никто не подтвердил</p>
-              ) : (
-                going.map((p) => (
-                  <div
-                    key={p.user.id}
-                    className="flex items-center gap-2 cursor-pointer hover:underline"
-                    onClick={() => router.push(`/profile/${p.user.id}`)}
-                  >
-                    <div
-                      className="w-8 h-8 rounded-full"
-                      style={{ backgroundColor: p.user.color }}
-                    />
-                    <span>{p.user.name}</span>
-                  </div>
-                ))
-              )}
+          <div className="space-y-3 mt-4">
+            <div
+              className="w-full h-14 rounded-2xl relative cursor-pointer select-none overflow-hidden
+                     bg-white/20 backdrop-blur-xl border border-white/30
+                     shadow-[inset_0_1px_1px_rgba(255,255,255,0.4),0_4px_16px_rgba(0,0,0,0.1)]
+                     hover:shadow-[inset_0_1px_1px_rgba(255,255,255,0.6),0_8px_24px_rgba(0,0,0,0.15)]
+                     transition-all duration-300 ease-out"
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const third = rect.width / 3;
+                if (clickX < third) {
+                  handleJoin();
+                } else if (clickX > 2 * third) {
+                  handleLeave();
+                } else {
+                  handleCancel();
+                }
+              }}
+            >
+              <div className="absolute inset-0 flex">
+                <div className={`w-1/3 transition-all duration-500 ${
+                  currentUserStatus === "going" ? "bg-green-400/30 shadow-[0_0_30px_rgba(34,197,94,0.5)]" : "bg-green-400/10"
+                }`} />
+                <div className="w-1/3 bg-gray-200/50" />
+                <div className={`w-1/3 transition-all duration-500 ${
+                  currentUserStatus === "not_going" ? "bg-red-400/30 shadow-[0_0_30px_rgba(239,68,68,0.5)]" : "bg-red-400/10"
+                }`} />
+              </div>
+              <div className={`absolute top-1 bottom-1 w-1/3 rounded-xl transition-all duration-300 ease-out ${
+                currentUserStatus === "going"
+                  ? "left-0 bg-gradient-to-r from-green-400 via-green-500 to-emerald-400 shadow-[0_0_20px_rgba(34,197,94,0.6),inset_0_1px_0_rgba(255,255,255,0.5)]"
+                  : currentUserStatus === "not_going"
+                  ? "left-2/3 bg-gradient-to-r from-red-400 via-red-500 to-rose-400 shadow-[0_0_20px_rgba(239,68,68,0.6),inset_0_1px_0_rgba(255,255,255,0.5)]"
+                  : "left-1/3 bg-gradient-to-r from-gray-300 via-gray-400 to-slate-300 shadow-[0_0_15px_rgba(148,163,184,0.4),inset_0_1px_0_rgba(255,255,255,0.6)]"
+              }`}>
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-b from-white/30 to-transparent" />
+              </div>
+              <div className="absolute inset-0 flex items-center justify-around text-sm font-semibold pointer-events-none z-10">
+                <span className={`transition-all duration-300 ${
+                  currentUserStatus === "going" ? "text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] scale-105" : "text-green-900"
+                }`}>
+                  ✓ Я в деле
+                </span>
+                <span className={`transition-all duration-300 ${
+                  currentUserStatus === "not_answered" ? "text-gray-900 font-bold" : "text-gray-600"
+                }`}>
+                  Едешь?
+                </span>
+                <span className={`transition-all duration-300 ${
+                  currentUserStatus === "not_going" ? "text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] scale-105" : "text-red-900"
+                }`}>
+                  ✗ Нахер
+                </span>
+              </div>
             </div>
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium text-red-600">Не едут ({notGoing.length})</h4>
-              {notGoing.map((p) => (
-                <div
-                  key={p.user.id}
-                  className="flex items-center gap-2 cursor-pointer hover:underline"
-                  onClick={() => router.push(`/profile/${p.user.id}`)}
-                >
-                  <div
-                    className="w-8 h-8 rounded-full"
-                    style={{ backgroundColor: p.user.color }}
-                  />
-                  <span>{p.user.name}</span>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                  <h4 className="text-xs font-semibold text-green-800">Я в деле ({going.length})</h4>
                 </div>
-              ))}
+                <div className="flex flex-col gap-1">
+                  {going.map((p) => (
+                    <div key={p.user.id} className="flex items-center gap-2 cursor-pointer hover:underline" onClick={() => router.push(`/profile/${p.user.id}`)}>
+                      <div className="w-6 h-6 rounded-full" style={{ backgroundColor: p.user.color }} />
+                      <span className="text-sm">{p.user.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                  <h4 className="text-xs font-semibold text-red-800">Нахер ({notGoing.length})</h4>
+                </div>
+                <div className="flex flex-col gap-1">
+                  {notGoing.map((p) => (
+                    <div key={p.user.id} className="flex items-center gap-2 cursor-pointer hover:underline" onClick={() => router.push(`/profile/${p.user.id}`)}>
+                      <div className="w-6 h-6 rounded-full opacity-90" style={{ backgroundColor: p.user.color }} />
+                      <span className="text-sm">{p.user.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </CardContent>

@@ -124,4 +124,6 @@ export const eventsApi = {
   join: (id: number) => request<{ message: string }>(`/events/${id}/join`, { method: "POST" }),
 
   leave: (id: number) => request<{ message: string }>(`/events/${id}/leave`, { method: "POST" }),
+
+  cancel: (id: number) => request<{ message: string }>(`/events/${id}/cancel`, { method: "POST" }),
 };

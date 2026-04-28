@@ -37,9 +37,11 @@ export function EventsContent() {
         router.push("/login");
         return;
       }
-      if (!user) {
+      let currentUser = user;
+      if (!currentUser) {
         const u = await authApi.me();
         setAuth(u, token);
+        currentUser = u;
       }
       const [eventsData, vacationsData] = await Promise.all([
         eventsApi.list(),
@@ -49,10 +51,8 @@ export function EventsContent() {
       setVacations(vacationsData);
       const statuses: Record<number, ParticipationStatus> = {};
       eventsData.forEach((event) => {
-        const myParticipation = event.participations.find((p) => p.user_id === user?.id);
-        if (myParticipation) {
-          statuses[event.id] = myParticipation.status;
-        }
+        const myParticipation = event.participations.find((p) => p.user_id === currentUser?.id);
+        statuses[event.id] = myParticipation?.status ?? "not_answered";
       });
       setEventStatuses(statuses);
     } catch (err) {
@@ -84,6 +84,16 @@ export function EventsContent() {
     try {
       await eventsApi.leave(eventId);
       setEventStatuses((prev) => ({ ...prev, [eventId]: "not_going" }));
+      loadEvents();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  }
+
+  async function handleCancel(eventId: number) {
+    try {
+      await eventsApi.cancel(eventId);
+      setEventStatuses((prev) => ({ ...prev, [eventId]: "not_answered" }));
       loadEvents();
     } catch (err: any) {
       alert(err.message);
@@ -179,7 +189,7 @@ export function EventsContent() {
             const isEditing = editingEventId === event.id;
             const currentStatus = eventStatuses[event.id];
             return (
-              <Card key={event.id}>
+              <Card key={event.id} className="flex flex-col h-full">
                 <CardHeader className="relative">
                   {isEditing ? (
                     <Input
@@ -349,61 +359,116 @@ export function EventsContent() {
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>{event.description}</ReactMarkdown>
                         </div>
                       )}
-                      <div className="flex gap-2 mt-2">
-                        <span className="text-sm text-green-600">{going.length} едет</span>
-                        <span className="text-sm text-red-600">{notGoing.length} не едет</span>
-                      </div>
-                      {going.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {going.map((p) => (
-                            <div
-                              key={p.user.id}
-                              className="text-xs px-1 py-0.5 rounded"
-                              style={{ backgroundColor: p.user.color, color: "#fff" }}
-                            >
-                              {p.user.name}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {notGoing.length > 0 && (
-                        <>
-                          <div className="border-t my-2" />
-                          <div className="flex flex-wrap gap-1">
-                            {notGoing.map((p) => (
-                              <div
-                                key={p.user.id}
-                                className="text-xs px-1 py-0.5 rounded opacity-60"
-                                style={{ backgroundColor: p.user.color, color: "#fff" }}
-                              >
-                                {p.user.name}
-                              </div>
-                            ))}
-                          </div>
-                        </>
-                      )}
                     </>
                   )}
                 </CardContent>
                 {!isEditing && (
-                  <CardFooter className="justify-start pt-0">
-                    <div className="flex gap-2">
-                      <Button
-                        variant={currentStatus === "going" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => handleJoin(event.id)}
+                  <div className="mt-auto p-4 pt-0 space-y-3">
+                    <div
+                      className="w-full h-14 rounded-2xl relative cursor-pointer select-none overflow-hidden
+                                 bg-white/20 backdrop-blur-xl border border-white/30
+                                 shadow-[inset_0_1px_1px_rgba(255,255,255,0.4),0_4px_16px_rgba(0,0,0,0.1)]
+                                 hover:shadow-[inset_0_1px_1px_rgba(255,255,255,0.6),0_8px_24px_rgba(0,0,0,0.15)]
+                                 transition-all duration-300 ease-out"
+                      onClick={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const clickX = e.clientX - rect.left;
+                        const third = rect.width / 3;
+
+                        if (clickX < third) {
+                          handleJoin(event.id);
+                        } else if (clickX > 2 * third) {
+                          handleLeave(event.id);
+                        } else {
+                          handleCancel(event.id);
+                        }
+                      }}
+                    >
+                      {/* Светящиеся фоновые зоны */}
+                      <div className="absolute inset-0 flex">
+                        <div className={`w-1/3 transition-all duration-500 ${
+                          currentStatus === "going" ? "bg-green-400/30 shadow-[0_0_30px_rgba(34,197,94,0.5)]" : "bg-green-400/10"
+                        }`} />
+                        <div className="w-1/3 bg-gray-200/50" />
+                        <div className={`w-1/3 transition-all duration-500 ${
+                          currentStatus === "not_going" ? "bg-red-400/30 shadow-[0_0_30px_rgba(239,68,68,0.5)]" : "bg-red-400/10"
+                        }`} />
+                      </div>
+
+                      {/* Жидкий скользящий индикатор */}
+                      <div className={`absolute top-1 bottom-1 w-1/3 rounded-xl transition-all duration-300 ease-out ${
+                        currentStatus === "going"
+                          ? "left-0 bg-gradient-to-r from-green-400 via-green-500 to-emerald-400 shadow-[0_0_20px_rgba(34,197,94,0.6),inset_0_1px_0_rgba(255,255,255,0.5)]"
+                          : currentStatus === "not_going"
+                          ? "left-2/3 bg-gradient-to-r from-red-400 via-red-500 to-rose-400 shadow-[0_0_20px_rgba(239,68,68,0.6),inset_0_1px_0_rgba(255,255,255,0.5)]"
+                          : "left-1/3 bg-gradient-to-r from-gray-300 via-gray-400 to-slate-300 shadow-[0_0_15px_rgba(148,163,184,0.4),inset_0_1px_0_rgba(255,255,255,0.6)]"
+                      }`}
                       >
-                        Еду
-                      </Button>
-                      <Button
-                        variant={currentStatus === "not_going" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => handleLeave(event.id)}
-                      >
-                        Не еду
-                      </Button>
+                        {/* Внутреннее свечение */}
+                        <div className="absolute inset-0 rounded-xl bg-gradient-to-b from-white/30 to-transparent" />
+                      </div>
+
+                      {/* Текст с улучшенной читаемостью */}
+                      <div className="absolute inset-0 flex items-center justify-around text-sm font-semibold pointer-events-none z-10">
+                        <span className={`transition-all duration-300 ${
+                          currentStatus === "going" ? "text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] scale-105" : "text-green-900"
+                        }`}>
+                          ✓ Я в деле
+                        </span>
+                        <span className={`transition-all duration-300 ${
+                          currentStatus === "not_answered" ? "text-gray-900 font-bold" : "text-gray-600"
+                        }`}>
+                          Едешь?
+                        </span>
+                        <span className={`transition-all duration-300 ${
+                          currentStatus === "not_going" ? "text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] scale-105" : "text-red-900"
+                        }`}>
+                          ✗ Нахер
+                        </span>
+                      </div>
                     </div>
-                  </CardFooter>
+
+                    {/* Список пользователей */}
+                    <div className="grid grid-cols-2 gap-3 mt-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                          <h4 className="text-xs font-semibold text-green-800">Я в деле ({going.length})</h4>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {going.map((p) => (
+                            <span
+                              key={p.user.id}
+                              className="text-xs px-2.5 py-1 rounded-full text-white font-medium
+                                         shadow-[0_2px_8px_rgba(0,0,0,0.15)] hover:scale-105 transition-transform"
+                              style={{ backgroundColor: p.user.color }}
+                            >
+                              {p.user.name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                          <h4 className="text-xs font-semibold text-red-800">Нахер ({notGoing.length})</h4>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {notGoing.map((p) => (
+                            <span
+                              key={p.user.id}
+                              className="text-xs px-2.5 py-1 rounded-full text-white font-medium opacity-90
+                                         shadow-[0_2px_8px_rgba(0,0,0,0.15)] hover:scale-105 transition-transform"
+                              style={{ backgroundColor: p.user.color }}
+                            >
+                              {p.user.name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </Card>
             );
