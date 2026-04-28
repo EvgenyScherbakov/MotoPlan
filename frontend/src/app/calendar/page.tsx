@@ -12,8 +12,20 @@ import { useAuthStore } from "@/lib/store";
 import { Vacation, Event, User, ParticipationStatus } from "@/types";
 import { X, Users, MapPin } from "lucide-react";
 import { EventModal } from "@/components/EventModal";
+import Holidays from "date-holidays";
 
+const hd = new Holidays("RU");
 const WEEK_DAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+
+const isWeekend = (day: Date) => {
+  const dayOfWeek = day.getDay();
+  return dayOfWeek === 0 || dayOfWeek === 6;
+};
+
+const isHoliday = (day: Date) => {
+  const holidays = hd.isHoliday(day);
+  return holidays && holidays.length > 0;
+};
 
 export default function CalendarPage() {
   const router = useRouter();
@@ -179,7 +191,13 @@ export default function CalendarPage() {
                   return (
                     <div
                       key={day.toISOString()}
-                      className="min-h-[60px] border p-1 cursor-pointer hover:bg-muted/30"
+                      className={`min-h-[60px] border p-1 cursor-pointer hover:bg-muted/30 ${
+                        isHoliday(day)
+                          ? "bg-red-100 dark:bg-red-900/30"
+                          : isWeekend(day)
+                          ? "bg-blue-50 dark:bg-blue-900/20"
+                          : ""
+                      }`}
                       onClick={() => setSelectedDay(day)}
                     >
                       <div className="text-sm font-medium">{format(day, "d")}</div>
