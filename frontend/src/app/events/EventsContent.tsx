@@ -345,7 +345,7 @@ export function EventsContent() {
                         </a>
                       )}
                       {event.description && (
-                        <div className="text-sm text-muted-foreground prose prose-sm dark:prose-invert">
+                        <div className="text-sm text-muted-foreground prose prose-sm dark:prose-invert" style={{ whiteSpace: 'pre-wrap' }}>
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>{event.description}</ReactMarkdown>
                         </div>
                       )}

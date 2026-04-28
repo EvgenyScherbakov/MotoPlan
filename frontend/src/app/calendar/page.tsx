@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWithinInterval, startOfDay, isSameDay, eachMonthOfInterval } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfDay, isSameDay, eachMonthOfInterval, endOfYear } from "date-fns";
 import { ru } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { authApi, vacationsApi, eventsApi } from "@/lib/api";
+import { authApi, vacationsApi, eventsApi, ApiError } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { Vacation, Event, User, ParticipationStatus } from "@/types";
 import { X, Users, MapPin } from "lucide-react";
@@ -30,7 +30,6 @@ const isHoliday = (day: Date) => {
 export default function CalendarPage() {
   const router = useRouter();
   const { user, setAuth } = useAuthStore();
-  const [currentDate, setCurrentDate] = useState(new Date());
   const [vacations, setVacations] = useState<Vacation[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -45,19 +44,23 @@ export default function CalendarPage() {
   const loadData = useCallback(async () => {
     try {
       const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      console.log("[Calendar] loadData: token exists =", !!token, "user exists =", !!user);
       if (!token) {
         router.push("/login");
         return;
       }
       if (!user) {
+        console.log("[Calendar] Fetching user data...");
         const u = await authApi.me();
+        console.log("[Calendar] User data fetched:", u.username);
         setAuth(u, token);
       }
-      const [v, e, u] = await Promise.all([
+      console.log("[Calendar] Fetching vacations and events...");
+      const [v, e] = await Promise.all([
         vacationsApi.list(),
         eventsApi.list(),
-        authApi.me().then(() => []).catch(() => []),
       ]);
+      console.log("[Calendar] Data fetched successfully");
       setVacations(v);
       setEvents(e);
       const statuses: Record<number, ParticipationStatus> = {};
@@ -68,8 +71,14 @@ export default function CalendarPage() {
         }
       });
       setEventStatuses(statuses);
-    } catch (err) {
-      router.push("/login");
+    } catch (err: any) {
+      console.error("[Calendar] Error in loadData:", err);
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        console.log("[Calendar] Auth error, redirecting to login");
+        router.push("/login");
+      } else {
+        console.error("Failed to load calendar data:", err);
+      }
     } finally {
       setLoading(false);
     }
@@ -82,9 +91,31 @@ export default function CalendarPage() {
   const getVacationsForDay = (day: Date) => {
     return vacations.filter((v) => {
       if (hiddenUsers.includes(v.user_id)) return false;
-      const start = new Date(v.start_date);
-      const end = new Date(v.end_date);
-      return isWithinInterval(day, { start, end });
+      
+      // Парсим даты отпуска из строк
+      const [sy, sm, sd] = v.start_date.split('-').map(Number);
+      const [ey, em, ed] = v.end_date.split('-').map(Number);
+      const startDate = new Date(sy, sm - 1, sd);
+      const endDate = new Date(ey, em - 1, ed);
+      
+      // Проверяем, попадает ли день в интервал (включая границы)
+      const dayNorm = startOfDay(day);
+      const startNorm = startOfDay(startDate);
+      const endNorm = startOfDay(endDate);
+      
+      const result = dayNorm >= startNorm && dayNorm <= endNorm;
+      
+      // Отладочный вывод (только для первого отпуска и проблемных дней)
+      if (v.id === 3 || v.id === 4) { // ID вашего отпуска
+        console.log(`[Calendar] Vacation ${v.id}: ${v.start_date} - ${v.end_date}`);
+        console.log(`[Calendar] Day: ${format(day, 'yyyy-MM-dd')}, DayNorm: ${dayNorm.toISOString()}`);
+        console.log(`[Calendar] Start: ${format(startDate, 'yyyy-MM-dd')}, StartNorm: ${startNorm.toISOString()}`);
+        console.log(`[Calendar] End: ${format(endDate, 'yyyy-MM-dd')}, EndNorm: ${endNorm.toISOString()}`);
+        console.log(`[Calendar] Result (day >= start && day <= end): ${result}`);
+        console.log(`[Calendar] dayNorm >= startNorm: ${dayNorm >= startNorm}, dayNorm <= endNorm: ${dayNorm <= endNorm}`);
+      }
+      
+      return result;
     });
   };
 
@@ -153,26 +184,18 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between mb-4">
-        <Button variant="outline" onClick={() => setCurrentDate(subMonths(currentDate, 1))}>
-          ←
-        </Button>
-        <h2 className="text-xl font-semibold">{format(currentDate, "MMMM yyyy", { locale: ru })}</h2>
-        <Button variant="outline" onClick={() => setCurrentDate(addMonths(currentDate, 1))}>
-          →
-        </Button>
-      </div>
-
       <div className="grid grid-cols-1 gap-4">
-        {[0, 1, 2].map((offset) => {
-          const monthDate = addMonths(currentDate, offset);
+        {eachMonthOfInterval({
+          start: startOfMonth(new Date()),
+          end: endOfYear(new Date())
+        }).map((monthDate) => {
           const monthStart = startOfMonth(monthDate);
           const monthEnd = endOfMonth(monthDate);
           const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
           const startDay = daysInMonth[0].getDay() || 7;
           const paddingDays = Array(startDay - 1).fill(null);
           return (
-            <div key={offset}>
+            <div key={monthDate.toISOString()}>
               <div className="text-center font-semibold mb-2">{format(monthDate, "MMMM yyyy", { locale: ru })}</div>
               <div className="grid grid-cols-7 gap-1 mb-2">
                 {WEEK_DAYS.map((day) => (
@@ -183,7 +206,7 @@ export default function CalendarPage() {
               </div>
               <div className="grid grid-cols-7 gap-1">
                 {paddingDays.map((_, i) => (
-                  <div key={`pad-${offset}-${i}`} className="min-h-[60px] bg-muted/20" />
+                  <div key={`pad-${monthDate.toISOString()}-${i}`} className="min-h-[60px] bg-muted/20" />
                 ))}
                 {daysInMonth.map((day) => {
                   const dayVacations = getVacationsForDay(day);
@@ -273,7 +296,28 @@ export default function CalendarPage() {
                         </div>
                         {e.location && (
                           <div className="text-sm flex items-center gap-1 mt-1">
-                            <MapPin className="h-3 w-3" /> {e.location}
+                            <MapPin className="h-3 w-3" />
+                            {e.location.startsWith("http") ? (
+                              <a href={e.location} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+                                Место
+                              </a>
+                            ) : (
+                              <span>{e.location}</span>
+                            )}
+                          </div>
+                        )}
+                        {e.route && (
+                          <div className="text-sm flex items-center gap-1 mt-1">
+                            <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                            </svg>
+                            {e.route.startsWith("http") ? (
+                              <a href={e.route} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+                                Маршрут
+                              </a>
+                            ) : (
+                              <span>{e.route}</span>
+                            )}
                           </div>
                         )}
                         {e.description && (
@@ -327,23 +371,6 @@ export default function CalendarPage() {
                     );
                   })
                 )}
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => {
-                    setShowVacationForm(true);
-                    setNewVacation({
-                      start_date: format(selectedDay, "yyyy-MM-dd"),
-                      end_date: format(selectedDay, "yyyy-MM-dd"),
-                      description: "",
-                    });
-                  }}
-                >
-                  Добавить отпуск
-                </Button>
-                <Button variant="outline" onClick={() => setShowEventModal(true)}>
-                  Создать поездку
-                </Button>
               </div>
             </CardContent>
           </Card>

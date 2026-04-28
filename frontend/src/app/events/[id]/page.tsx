@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { MapPin } from "lucide-react";
 import { authApi, eventsApi, usersApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { Event, ParticipationStatus, User } from "@/types";
@@ -104,14 +105,28 @@ export default function EventDetailPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {event.location && (
-            <p>
-              <span className="font-medium">📍 Место:</span> {event.location}
-            </p>
+            event.location.startsWith("http") ? (
+              <a href={event.location} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 hover:underline flex items-center gap-1">
+                <MapPin className="h-3 w-3" /> Место
+              </a>
+            ) : (
+              <p className="text-sm flex items-center gap-1">
+                <MapPin className="h-3 w-3" /> {event.location}
+              </p>
+            )
+          )}
+          {event.route && (
+            <a href={event.route} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 hover:underline flex items-center gap-1">
+              <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+              </svg>
+              Маршрут
+            </a>
           )}
           {event.description && (
-            <p>
+            <div style={{ whiteSpace: 'pre-wrap' }}>
               <span className="font-medium">Описание:</span> {event.description}
-            </p>
+            </div>
           )}
           <div className="flex gap-2">
             {currentUserStatus === "going" ? (
