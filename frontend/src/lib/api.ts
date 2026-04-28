@@ -1,11 +1,19 @@
 import { Token, LoginRequest, UserCreate, User, UserUpdate, Vacation, VacationCreate, VacationUpdate, Event, EventCreate, EventUpdate } from "@/types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const API_URL = "/api/v1";
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
   }
+}
+
+function buildUrl(path: string): string {
+  let url = `${API_URL}${path}`;
+  if (typeof window !== "undefined") {
+    console.log("[API] Fetching:", url, "Full URL:", new URL(url, window.location.origin).href);
+  }
+  return url;
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -18,7 +26,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
+  const url = buildUrl(path);
+  const response = await fetch(url, {
     ...options,
     headers,
   });
@@ -42,7 +51,8 @@ export async function requestWithToken<T>(path: string, token: string, options: 
     "Authorization": `Bearer ${token}`,
   };
 
-  const response = await fetch(`${API_URL}${path}`, {
+  const url = buildUrl(path);
+  const response = await fetch(url, {
     ...options,
     headers,
   });
@@ -70,7 +80,7 @@ export const authApi = {
 };
 
 export const usersApi = {
-  list: () => request<User[]>("/users/"),
+  list: () => request<User[]>("/users"),
 
   get: (id: number) => request<User>(`/users/${id}`),
 
@@ -83,11 +93,11 @@ export const usersApi = {
 export const vacationsApi = {
   list: (params?: { user_id?: number; start_date?: string; end_date?: string }) => {
     const query = params ? "?" + new URLSearchParams(params as Record<string, string>).toString() : "";
-    return request<Vacation[]>(`/vacations/${query}`);
+    return request<Vacation[]>(`/vacations${query}`);
   },
 
   create: (data: VacationCreate) =>
-    request<Vacation>("/vacations/", { method: "POST", body: JSON.stringify(data) }),
+    request<Vacation>("/vacations", { method: "POST", body: JSON.stringify(data) }),
 
   update: (id: number, data: VacationUpdate) =>
     request<Vacation>(`/vacations/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
@@ -98,13 +108,13 @@ export const vacationsApi = {
 export const eventsApi = {
   list: (params?: { start_date?: string; end_date?: string }) => {
     const query = params ? "?" + new URLSearchParams(params as Record<string, string>).toString() : "";
-    return request<Event[]>(`/events/${query}`);
+    return request<Event[]>(`/events${query}`);
   },
 
   get: (id: number) => request<Event>(`/events/${id}`),
 
   create: (data: EventCreate) =>
-    request<Event>("/events/", { method: "POST", body: JSON.stringify(data) }),
+    request<Event>("/events", { method: "POST", body: JSON.stringify(data) }),
 
   update: (id: number, data: EventUpdate) =>
     request<Event>(`/events/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
